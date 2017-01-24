@@ -171,6 +171,9 @@ with tf.Session() as sess:
         
         train_accuracy = evaluate(X_train, y_train)
         print("Train Accuracy = {:.3f}".format(train_accuracy))
+
+        test_accuracy = evaluate(X_test, y_test)
+        print("Test Accuracy = {:.3f}".format(test_accuracy))
         
         print()
     
@@ -178,10 +181,11 @@ with tf.Session() as sess:
     saver.save(sess, './lenet')
     print("Model saved")
 
-
+"""
 with tf.Session() as sess:
     saver.restore(sess, tf.train.latest_checkpoint('.'))
 
     test_accuracy = evaluate(X_test, y_test)
     print("Test Accuracy = {:.3f}".format(test_accuracy))
 
+"""
