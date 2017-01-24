@@ -21,6 +21,15 @@ from sklearn.model_selection import train_test_split
 
 X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
 
+from scipy.ndimage.interpolation import rotate
+import numpy as np
+from numpy.random import random
+
+#Create a rotated set
+rotated = [rotate(im, (random() - 0.5) * 30.0, reshape=False) for im in X_train]
+X_train = np.concatenate([X_train, rotated])
+y_train = np.concatenate([y_train, y_train])
+
 assert(len(X_train) == len(y_train))
 assert(len(X_validation) == len(y_validation))
 assert(len(X_test) == len(y_test))
@@ -65,8 +74,8 @@ from tensorflow.contrib.layers import flatten
 
 def LeNet(x):    
     # Arguments used for tf.truncated_normal, randomly defines variables for the weights and biases for each layer
-    mu = 0
-    sigma = 0.1
+    mu = 0.0
+    sigma = 0.05
     
     # SOLUTION: Layer 1: Convolutional. Input = 32x32x1. Output = 28x28x6.
     conv1_W = tf.Variable(tf.truncated_normal(shape=(5, 5, 3, 6), mean = mu, stddev = sigma))
@@ -155,19 +164,24 @@ with tf.Session() as sess:
             end = offset + BATCH_SIZE
             batch_x, batch_y = X_train[offset:end], y_train[offset:end]
             sess.run(training_operation, feed_dict={x: batch_x, y: batch_y})
-            
+
+        print("EPOCH {} ...".format(i+1))    
         validation_accuracy = evaluate(X_validation, y_validation)
-        print("EPOCH {} ...".format(i+1))
         print("Validation Accuracy = {:.3f}".format(validation_accuracy))
-        print()
         
+        train_accuracy = evaluate(X_train, y_train)
+        print("Train Accuracy = {:.3f}".format(train_accuracy))
+        
+        print()
+    
+    print("Validation Accuracy = {:.3f} Epochs={}, BATCHSIZE={}, rate={}".format(validation_accuracy, EPOCHS, BATCH_SIZE, rate))
     saver.save(sess, './lenet')
     print("Model saved")
 
-"""
+
 with tf.Session() as sess:
     saver.restore(sess, tf.train.latest_checkpoint('.'))
 
     test_accuracy = evaluate(X_test, y_test)
     print("Test Accuracy = {:.3f}".format(test_accuracy))
-"""
+
