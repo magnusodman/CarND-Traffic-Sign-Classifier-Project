@@ -1,6 +1,6 @@
 
 import pickle
-
+from tensorflow.contrib.layers.python.layers import batch_norm
 
 # TODO: Fill this in based on where you saved the training and testing data
 
@@ -17,18 +17,69 @@ X_test, y_test = test['features'], test['labels']
 
 
 
-from sklearn.model_selection import train_test_split
-
-X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
-
 from scipy.ndimage.interpolation import rotate
+from scipy.ndimage.interpolation import zoom
 import numpy as np
 from numpy.random import random
 
+def clipped_zoom(img, zoom_factor, **kwargs):
+
+    h, w = img.shape[:2]
+
+    # width and height of the zoomed image
+    zh = int(np.round(zoom_factor * h))
+    zw = int(np.round(zoom_factor * w))
+
+    # for multichannel images we don't want to apply the zoom factor to the RGB
+    # dimension, so instead we create a tuple of zoom factors, one per array
+    # dimension, with 1's for any trailing dimensions after the width and height.
+    zoom_tuple = (zoom_factor,) * 2 + (1,) * (img.ndim - 2)
+
+    # zooming out
+    if zoom_factor < 1:
+        # bounding box of the clip region within the output array
+        top = (h - zh) // 2
+        left = (w - zw) // 2
+        # zero-padding
+        out = np.zeros_like(img)
+        out[top:top+zh, left:left+zw] = zoom(img, zoom_tuple, **kwargs)
+
+    # zooming in
+    elif zoom_factor > 1:
+        # bounding box of the clip region within the input array
+        top = (zh - h) // 2
+        left = (zw - w) // 2
+        out = zoom(img[top:top+zh, left:left+zw], zoom_tuple, **kwargs)
+        # `out` might still be slightly larger than `img` due to rounding, so
+        # trim off any extra pixels at the edges
+        trim_top = ((out.shape[0] - h) // 2)
+        trim_left = ((out.shape[1] - w) // 2)
+        out = out[trim_top:trim_top+h, trim_left:trim_left+w]
+
+    # if zoom_factor == 1, just return the input array
+    else:
+        out = img
+    if out.shape != img.shape:
+        print(out.shape)
+    return out
+
 #Create a rotated set
-rotated = [rotate(im, (random() - 0.5) * 30.0, reshape=False) for im in X_train]
-X_train = np.concatenate([X_train, rotated])
-y_train = np.concatenate([y_train, y_train])
+rotated = [rotate(im, (random() - 0.5) * 30.0, reshape=False, mode='nearest') for im in X_train]
+rotated2 = [rotate(im, (random() - 0.5) * 30.0, reshape=False, mode='nearest') for im in X_train]
+
+print("R shape", rotated[0].shape)
+#Crate a zoomed set
+zoomed = [clipped_zoom(im, 1.0 + random() * 0.3) for im in X_train]
+#print("Z shape", zoomed[0].shape)
+
+X_train = np.concatenate([X_train, rotated, rotated2, zoomed])
+#X_train = np.concatenate([X_train, zoomed])
+#y_train = np.concatenate([y_train, y_train])
+y_train = np.concatenate([y_train, y_train, y_train, y_train])
+
+from sklearn.model_selection import train_test_split
+
+X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=0.2, random_state=0)
 
 assert(len(X_train) == len(y_train))
 assert(len(X_validation) == len(y_validation))
@@ -67,7 +118,7 @@ X_train, y_train = shuffle(X_train, y_train)
 
 import tensorflow as tf
 
-EPOCHS = 15
+EPOCHS = 10
 BATCH_SIZE = 128
 
 from tensorflow.contrib.layers import flatten
@@ -77,6 +128,7 @@ def LeNet(x):
     mu = 0.0
     sigma = 0.05
     
+    x = batch_norm(x)
     # SOLUTION: Layer 1: Convolutional. Input = 32x32x1. Output = 28x28x6.
     conv1_W = tf.Variable(tf.truncated_normal(shape=(5, 5, 3, 6), mean = mu, stddev = sigma))
     conv1_b = tf.Variable(tf.zeros(6))
@@ -169,8 +221,10 @@ with tf.Session() as sess:
         validation_accuracy = evaluate(X_validation, y_validation)
         print("Validation Accuracy = {:.3f}".format(validation_accuracy))
         
+        """
         train_accuracy = evaluate(X_train, y_train)
         print("Train Accuracy = {:.3f}".format(train_accuracy))
+        """
 
         test_accuracy = evaluate(X_test, y_test)
         print("Test Accuracy = {:.3f}".format(test_accuracy))
@@ -181,11 +235,25 @@ with tf.Session() as sess:
     saver.save(sess, './lenet')
     print("Model saved")
 
+from scipy.ndimage import imread
+
+def predict(im):
+    x = tf.placeholder(tf.float32, (None, 32, 32, 3))
+    logits = LeNet(x)
+    predictions = tf.nn.softmax(logits)
+    saver = tf.train.Saver()
+    with tf.Session() as sess:
+        feed_dict = {x: im.reshape(1, 32, 32, 3)}
+        classification = sess.run(predictions, feed_dict)
+        return classification
+
+print(predict(imread("mod/two.png")))
+
+
 """
 with tf.Session() as sess:
     saver.restore(sess, tf.train.latest_checkpoint('.'))
 
     test_accuracy = evaluate(X_test, y_test)
     print("Test Accuracy = {:.3f}".format(test_accuracy))
-
 """
