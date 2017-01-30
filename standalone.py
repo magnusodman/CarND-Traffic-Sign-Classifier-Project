@@ -1,5 +1,6 @@
 # Load pickled data
 import pickle
+from tensorflow.contrib.layers.python.layers import batch_norm
 
 training_file = 'traffic-signs-data/train.p'
 testing_file = 'traffic-signs-data/test.p'
